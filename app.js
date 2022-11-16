@@ -3,6 +3,7 @@ const currencyTwo = document.querySelector('[data-js="currency-two"]')
 const convertedValue = document.querySelector('[data-js="converted-value"]')
 const currencyOneTimes = document.querySelector('[data-js="currency-one-times"]')
 const feedbackMessage = document.querySelector('[data-js="feedback-message"]')
+const conversionPrecision = document.querySelector('[data-js="conversion-precision"]')
 
 const apiKey = 'f9bde40008634e49359a1a7d'
 
@@ -26,52 +27,38 @@ const fetchCurrencyCodes = async () => {
     const currencyCodesURL = getCurrencyCodesURL()
     const response = await fetch(currencyCodesURL)
 
-    const { supported_codes, 'error-type': errorType} = await response.json()
+    if (!response.ok) throw new Error('Falha na conexão ao tentar obter os códigos das moedas') 
 
-    if (errorType) {
-      const errorResponses = {
-        'invalid-key': 'Sua chave de API não é válida.',
-        'inactive-account': 'Seu endereço de e-mail não foi confirmado.',
-        'quota-reached': 'Sua conta atingiu o número de solicitações permitidas pelo seu plano.',
-      }
+    const { supported_codes, 'error-type': errorType } = await response.json()
 
-      const message = `${errorType} ${errorResponses[errorType]}`
-      throw new Error(message)
-    }
-
+    if (errorType) throw new Error(errorType)
+    
     setLocalStorage('currencyCodes', supported_codes)
+    
     return supported_codes
 
-  } catch (error) {
-    console.log(error)
-    showFeedbackMessage('Falha ao obter códigos suportados')
+  } catch ({ message }) {
+    console.log(message)
+    showFeedbackMessage('Falha ao obter códigos das moedas suportadas')
   }
 }
 
 const fetchExchangeRate = async pairConversionURL => {
   try {
     const response = await fetch(pairConversionURL)
+
+    if (!response.ok) throw new Error('Falha na conexão ao tentar obter a taxa de câmbio') 
+
     const exchangeRate = await response.json()
     const { 'error-type': errorType } = exchangeRate
     
-    if (errorType) {
-      const errorResponses = {
-        'unsupported-code': 'Não damos suporte ao código da moeda fornecida',
-        'malformed-request': 'Alguma parte do seu pedido não segue a estrutura de request.',
-        'invalid-key': 'Sua chave da API não é válida.',
-        'inactive-account': 'Se enderço de email não foi confirmado.',
-        'quota-reached': 'Sua conta atingiu o número máximo de solicitações permitidas pelo plano.'
-      }
-
-      const message = `${errorType} ${errorResponses[errorType]}`
-      throw new Error(message)
-    }
+    if (errorType) throw new Error(errorType)
 
     return exchangeRate
 
-  } catch (error) {
-    console.log(error)
-    showFeedbackMessage('Falha ao obter taxa de câmbio')
+  } catch ({ message }) {
+    console.log(message)
+    showFeedbackMessage('Não foi possível obter a taxa de câmbio das moedas selecionadas')
   }
 }
 
@@ -80,9 +67,9 @@ const getCurrencyCodes = async () =>
   
 const insertOptionIntoSelect = (select, option) => select.append(option)
 
-
 const createOption = (value, textContent) => {
   const option = document.createElement('option')
+
   option.value = value
   option.textContent = textContent || value
 
@@ -91,18 +78,18 @@ const createOption = (value, textContent) => {
 
 const setSelectedOption = (select, value) => {
   const options = Array.from(select.children)
-  
-  options.forEach(option => {
-    const isTargetOption = option.value === value
 
-    if (isTargetOption) {
-      option.selected = true  
-    }
-  })
+  const checkIfOptionShouldBeSelected = option => {
+    const isTargetOption = option.value === value
+    if (!isTargetOption) return
+    option.selected = true
+  }
+  
+  options.forEach(checkIfOptionShouldBeSelected)
 }
 
 const fillSelects = async () => {
-  const currencyCodesTemplate = [[defaultCurrencyBase], [defaultCurrencyTarget]]
+  const currencyCodesTemplate = [[ defaultCurrencyBase ], [ defaultCurrencyTarget ]]
   const currencyCodes = await getCurrencyCodes() || currencyCodesTemplate
 
   currencyCodes.forEach(([ currencyCode ]) => {
@@ -123,18 +110,20 @@ const getConversionRate = async (currencyBase, currencyTarget) => {
   return conversion_rate
 }
 
-const showConversionRate = async (currencyBase, currencyTarget, multiplier = 1) => {
+const showConversionRate = async (currencyBase, currencyTarget, multiplier) => {
   const conversionRate = await getConversionRate(currencyBase, currencyTarget)
-  const conversionRateAmount = Number(conversionRate.toFixed(2)) * multiplier
-
+  const conversionRateAmount = Number(conversionRate) * multiplier
+  const conversionPrecisionAmount = Number(conversionRate) * 1
+  
   convertedValue.textContent = conversionRateAmount.toFixed(2)
+  conversionPrecision.textContent = `1 ${currencyBase} = ${conversionPrecisionAmount} ${currencyTarget}`
 }
 
 const getSelectedCurrencies = () => { 
   const currencyBase = currencyOne.value
   const currencyTarget = currencyTwo.value
 
-  return [currencyBase, currencyTarget]
+  return [ currencyBase, currencyTarget ]
 }
 
 const updateConversionRate = () => {
